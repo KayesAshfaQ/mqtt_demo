@@ -1,27 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
+import 'package:uuid/uuid.dart';
+
+import 'mqtt_config.dart';
 
 class MqttHandler with ChangeNotifier {
-
   final ValueNotifier<String> data = ValueNotifier<String>("");
+
+  String clientIdentifier = const Uuid().v4();
+
   late MqttServerClient client;
 
-  MqttHandler({required this.client});
-
-  
- Future<Object> connect() async {
+  Future<Object> connect() async {
     client = MqttServerClient.withPort(
-        'broker.emqx.io', 'lens_ALGxRhLLfeAVFZU2iMgNfBTyNUS232332323', 1883);
-    client.logging(on: true);
-    client.onConnected = onConnected;
-    client.onDisconnected = onDisconnected;
-    client.onUnsubscribed = onUnsubscribed;
-    client.onSubscribed = onSubscribed;
-    client.onSubscribeFail = onSubscribeFail;
-    client.pongCallback = pong;
-    client.keepAlivePeriod = 60;
-    client.logging(on: true);
+      serverAddress,
+      clientIdentifier,
+      mqttPort,
+    );
+
+    client
+      ..onConnected = onConnected
+      ..onDisconnected = onDisconnected
+      ..onUnsubscribed = onUnsubscribed
+      ..onSubscribed = onSubscribed
+      ..onSubscribeFail = onSubscribeFail
+      ..pongCallback = pong
+      ..keepAlivePeriod = 30
+      ..secure = true
+      ..logging(on: true);
 
     /// Set the correct MQTT protocol for mosquito
     client.setProtocolV311();
@@ -30,13 +37,17 @@ class MqttHandler with ChangeNotifier {
         .withWillTopic('willtopic')
         .withWillMessage('Will message')
         .startClean()
+        .withClientIdentifier(clientIdentifier)
         .withWillQos(MqttQos.atLeastOnce);
 
     print('MQTT_LOGS::Mosquitto client connecting....');
 
     client.connectionMessage = connMessage;
     try {
-      await client.connect();
+      await client.connect(
+        username,
+        password,
+      );
     } catch (e) {
       print('Exception: $e');
       client.disconnect();
@@ -46,7 +57,7 @@ class MqttHandler with ChangeNotifier {
       print('MQTT_LOGS::Mosquitto client connected');
     } else {
       print(
-          'MQTT_LOGS::ERROR Mosquitto client connection failed - disconnecting, status is ${client.connectionStatus}');
+          'MQTT_LOGS::ERROR Mosquitto client connection failed - disconnecting, status is ${client.connectionStatus!.state}');
       client.disconnect();
       return -1;
     }
@@ -70,7 +81,7 @@ class MqttHandler with ChangeNotifier {
     return client;
   }
 
-void onConnected() {
+  void onConnected() {
     print('MQTT_LOGS:: Connected');
   }
 
